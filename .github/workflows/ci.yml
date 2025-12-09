@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build Docker image
+      run: docker build -t remna-traffic-usage .
+
+    - name: Show logs on failure
+      if: failure()
+      run: docker logs remna-traffic-usage || true

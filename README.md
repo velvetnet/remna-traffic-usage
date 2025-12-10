@@ -17,7 +17,11 @@
 
 **Пример запроса:**
 ```bash
+# Без авторизации (если BASIC_AUTH_USER и BASIC_AUTH_PASSWORD не установлены)
 curl "http://localhost:3000/?nodes=961d0439-29a7-42ba-9174-9a0974a12adf,7542394a-7929-4409-a2a1-58e98fa2c6b5"
+
+# С авторизацией
+curl -u admin:secret "http://localhost:3000/?nodes=961d0439-29a7-42ba-9174-9a0974a12adf,7542394a-7929-4409-a2a1-58e98fa2c6b5"
 ```
 
 **Пример успешного ответа:**
@@ -83,11 +87,15 @@ docker-compose up -d
 | Переменная | Описание | По умолчанию |
 |------------|----------|--------------|
 | `PORT` | Порт приложения | `3000` |
+| `BASIC_AUTH_USER` | Имя пользователя для Basic Auth (опционально) | - |
+| `BASIC_AUTH_PASSWORD` | Пароль для Basic Auth (опционально) | - |
 | `DB_HOST` | Хост PostgreSQL | `localhost` |
 | `DB_PORT` | Порт PostgreSQL | `5432` |
 | `DB_NAME` | Имя базы данных | `postgres` |
 | `DB_USER` | Пользователь БД | `postgres` |
 | `DB_PASSWORD` | Пароль БД | `postgres` |
+
+**Примечание:** Если `BASIC_AUTH_USER` и `BASIC_AUTH_PASSWORD` не установлены, авторизация отключена.
 
 ## Структура базы данных
 

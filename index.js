@@ -4,6 +4,42 @@ const { Pool } = require('pg');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Basic Auth middleware
+const basicAuth = (req, res, next) => {
+  const authUser = process.env.BASIC_AUTH_USER;
+  const authPassword = process.env.BASIC_AUTH_PASSWORD;
+
+  if (!authUser || !authPassword) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Remna Traffic Usage"');
+    return res.status(401).json({
+      success: false,
+      error: 'Authentication required'
+    });
+  }
+
+  const base64Credentials = authHeader.split(' ')[1];
+  const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+  const [username, password] = credentials.split(':');
+
+  if (username === authUser && password === authPassword) {
+    return next();
+  }
+
+  res.setHeader('WWW-Authenticate', 'Basic realm="Remna Traffic Usage"');
+  return res.status(401).json({
+    success: false,
+    error: 'Invalid credentials'
+  });
+};
+
+app.use(basicAuth);
+
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 5432,

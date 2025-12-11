@@ -15,10 +15,12 @@ jobs:
       run: docker login ghcr.io -u $GITHUB_ACTOR -p ${{secrets.CI_PAT}}
 
     - name: Build Docker image
-      run: docker build -t remna-traffic-usage .
+      run: |
+        docker build -t remna-traffic-usage .
+        docker tag remna-traffic-usage ghcr.io/velvetnet/remna-traffic-usage:${GITHUB_REF##*/}
 
     - name: Publish image
-      run: docker push ghcr.io/velvetnet/remna-traffic-usage:${GITHUB_REF##*/}
+      run: docker push ghcr.io/velvetnet/remna-traffic-usage:latest
 
     - name: Show logs on failure
       if: failure()

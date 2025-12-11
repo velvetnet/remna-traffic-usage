@@ -51,48 +51,25 @@ const pool = new Pool({
 
 app.get('/', async (req, res) => {
   try {
-    const nodesParam = req.query.nodes;
-
-    if (!nodesParam) {
-      return res.status(400).json({
-        success: false,
-        error: 'Parameter "nodes" is required'
-      });
-    }
-
-    const nodeUuids = nodesParam.split(',').map(uuid => uuid.trim());
-
-    if (nodeUuids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'At least one node UUID is required'
-      });
-    }
-
-    const placeholders = nodeUuids.map((_, i) => `$${i + 1}`).join(',');
-
-    const result = await pool.query(
-      `
-        WITH expensive_nodes AS (
-          SELECT uuid
-          FROM nodes
-          WHERE uuid IN (${placeholders})
-        )
-        SELECT
-          u.uuid as user_uuid,
-          u.username,
-          SUM(nuh.total_bytes) as paid_traffic
-        FROM nodes_user_usage_history nuh
-        INNER JOIN expensive_nodes en ON nuh.node_uuid = en.uuid
-        INNER JOIN users u ON nuh.user_uuid = u.uuid
-        WHERE nuh.created_at >= DATE_TRUNC('month', CURRENT_DATE)
-          AND nuh.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
-        GROUP BY u.uuid, u.username
-        HAVING SUM(nuh.total_bytes) > 0
-        ORDER BY paid_traffic DESC;
-      `,
-      nodeUuids
-    );
+    const result = await pool.query(`
+      WITH expensive_nodes AS (
+        SELECT id
+        FROM nodes
+        WHERE 'LTE' = ANY(tags)
+      )
+      SELECT
+        u.uuid as user_uuid,
+        u.username,
+        SUM(nuh.total_bytes) as paid_traffic
+      FROM nodes_user_usage_history nuh
+      INNER JOIN expensive_nodes en ON nuh.node_id = en.id
+      INNER JOIN users u ON nuh.user_id = u.t_id
+      WHERE nuh.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+        AND nuh.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+      GROUP BY u.uuid, u.username
+      HAVING SUM(nuh.total_bytes) > 0
+      ORDER BY paid_traffic DESC
+    `);
     res.json({
       success: true,
       data: result.rows

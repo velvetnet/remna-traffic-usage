@@ -17,7 +17,7 @@ jobs:
     - name: Build Docker image
       run: |
         docker build -t remna-traffic-usage .
-        docker tag remna-traffic-usage ghcr.io/velvetnet/remna-traffic-usage:${GITHUB_REF##*/}
+        docker tag remna-traffic-usage ghcr.io/velvetnet/remna-traffic-usage:latest
 
     - name: Publish image
       run: docker push ghcr.io/velvetnet/remna-traffic-usage:latest

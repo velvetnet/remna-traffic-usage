@@ -1,8 +1,9 @@
+require('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.APPLICATION_PORT || 3000;
 
 // Basic Auth middleware
 const basicAuth = (req, res, next) => {

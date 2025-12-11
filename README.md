@@ -61,32 +61,51 @@ curl -u admin:secret "http://localhost:3000/?nodes=961d0439-29a7-42ba-9174-9a097
 npm install
 ```
 
-2. Скопируйте файл с переменными окружения:
+2. Создайте файл `.env` из примера:
 ```bash
 cp .env.example .env
 ```
 
-3. Настройте переменные окружения в `.env`
+3. Настройте переменные окружения в `.env`:
+```env
+APPLICATION_PORT=3000
+BASIC_AUTH_USER=admin
+BASIC_AUTH_PASSWORD=secret
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=postgres
+DB_PASSWORD=postgres
+```
 
 4. Запустите приложение:
 ```bash
 npm start
 ```
 
+**Важно:** Файл `.env` автоматически загружается при старте приложения благодаря пакету `dotenv`.
+
 ### Docker Compose
 
-1. Запустите все сервисы:
+1. Создайте файл `.env` из примера:
+```bash
+cp .env.example .env
+```
+
+2. Настройте переменные окружения в `.env` (при необходимости)
+
+3. Запустите все сервисы:
 ```bash
 docker-compose up -d
 ```
 
-Сервис будет доступен на `http://localhost:3000`
+Сервис будет доступен на порту, указанном в `APPLICATION_PORT` (по умолчанию `3000`)
 
 ## Переменные окружения
 
 | Переменная | Описание | По умолчанию |
 |------------|----------|--------------|
-| `PORT` | Порт приложения | `3000` |
+| `APPLICATION_PORT` | Порт приложения | `3000` |
 | `BASIC_AUTH_USER` | Имя пользователя для Basic Auth (опционально) | - |
 | `BASIC_AUTH_PASSWORD` | Пароль для Basic Auth (опционально) | - |
 | `DB_HOST` | Хост PostgreSQL | `localhost` |

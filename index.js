@@ -3,7 +3,7 @@ const express = require('express');
 const { Pool } = require('pg');
 
 const app = express();
-const port = process.env.APPLICATION_PORT || 3000;
+const port = process.env.APPLICATION_PORT || 3001;
 
 // Basic Auth middleware
 const basicAuth = (req, res, next) => {

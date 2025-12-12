@@ -51,25 +51,53 @@ const pool = new Pool({
 
 app.get('/', async (req, res) => {
   try {
-    const result = await pool.query(`
-      WITH expensive_nodes AS (
-        SELECT id
-        FROM nodes
-        WHERE 'LTE' = ANY(tags)
-      )
-      SELECT
-        u.uuid as user_uuid,
-        u.username,
-        SUM(nuh.total_bytes) as paid_traffic
-      FROM nodes_user_usage_history nuh
-      INNER JOIN expensive_nodes en ON nuh.node_id = en.id
-      INNER JOIN users u ON nuh.user_id = u.t_id
-      WHERE nuh.created_at >= DATE_TRUNC('month', CURRENT_DATE)
-        AND nuh.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
-      GROUP BY u.uuid, u.username
-      HAVING SUM(nuh.total_bytes) > 0
-      ORDER BY paid_traffic DESC
-    `);
+    let startDate, endDate;
+    const periodParam = req.query.period;
+
+    if (periodParam) {
+      // Валидация формата MM-YYYY
+      const periodRegex = /^(0[1-9]|1[0-2])-(\d{4})$/;
+      const match = periodParam.match(periodRegex);
+
+      if (!match) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid period format. Expected MM-YYYY (e.g., 01-2024)'
+        });
+      }
+
+      const [, month, year] = match;
+      startDate = `${year}-${month}-01`;
+
+      // Вычисляем конец месяца
+      const date = new Date(parseInt(year), parseInt(month), 0);
+      const lastDay = date.getDate();
+      endDate = `${year}-${month}-${lastDay}`;
+    }
+
+    const result = await pool.query(
+      `
+        WITH expensive_nodes AS (
+          SELECT id
+          FROM nodes
+          WHERE 'LTE' = ANY(tags)
+        )
+        SELECT
+          u.uuid as user_uuid,
+          u.username,
+          SUM(nuh.total_bytes) as paid_traffic
+        FROM nodes_user_usage_history nuh
+        INNER JOIN expensive_nodes en ON nuh.node_id = en.id
+        INNER JOIN users u ON nuh.user_id = u.t_id
+        WHERE nuh.created_at >= ${periodParam ? '$1::date' : "DATE_TRUNC('month', CURRENT_DATE)"}
+          AND nuh.created_at < ${periodParam ? '$2::date + INTERVAL \'1 day\'' : "DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'"}
+        GROUP BY u.uuid, u.username
+        HAVING SUM(nuh.total_bytes) > 0
+        ORDER BY paid_traffic DESC
+      `,
+      periodParam ? [startDate, endDate] : []
+    );
+
     res.json({
       success: true,
       data: result.rows

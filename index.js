@@ -75,28 +75,43 @@ app.get('/', async (req, res) => {
       endDate = `${year}-${month}-${lastDay}`;
     }
 
-    const result = await pool.query(
-      `
-        WITH expensive_nodes AS (
-          SELECT id
-          FROM nodes
-          WHERE 'LTE' = ANY(tags)
-        )
-        SELECT
-          u.uuid as user_uuid,
-          u.username,
-          SUM(nuh.total_bytes) as paid_traffic
-        FROM nodes_user_usage_history nuh
-        INNER JOIN expensive_nodes en ON nuh.node_id = en.id
-        INNER JOIN users u ON nuh.user_id = u.t_id
-        WHERE nuh.created_at >= ${periodParam ? '$1::date' : "DATE_TRUNC('month', CURRENT_DATE)"}
-          AND nuh.created_at < ${periodParam ? '$2::date + INTERVAL \'1 day\'' : "DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'"}
-        GROUP BY u.uuid, u.username
-        HAVING SUM(nuh.total_bytes) > 0
-        ORDER BY paid_traffic DESC
-      `,
-      periodParam ? [startDate, endDate] : []
-    );
+    const client = await pool.connect();
+    let result;
+
+    try {
+      await client.query('BEGIN');
+      await client.query('SET LOCAL max_parallel_workers_per_gather = 0');
+
+      result = await client.query(
+        `
+          WITH expensive_nodes AS (
+            SELECT id
+            FROM nodes
+            WHERE 'LTE' = ANY(tags)
+          )
+          SELECT
+            u.uuid as user_uuid,
+            u.username,
+            SUM(nuh.total_bytes) as paid_traffic
+          FROM nodes_user_usage_history nuh
+          INNER JOIN expensive_nodes en ON nuh.node_id = en.id
+          INNER JOIN users u ON nuh.user_id = u.t_id
+          WHERE nuh.created_at >= ${periodParam ? '$1::date' : "DATE_TRUNC('month', CURRENT_DATE)"}
+            AND nuh.created_at < ${periodParam ? '$2::date + INTERVAL \'1 day\'' : "DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'"}
+          GROUP BY u.uuid, u.username
+          HAVING SUM(nuh.total_bytes) > 0
+          ORDER BY paid_traffic DESC
+        `,
+        periodParam ? [startDate, endDate] : []
+      );
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
 
     res.json({
       success: true,

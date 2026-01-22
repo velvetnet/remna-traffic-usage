@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const { Pool } = require('pg');
+const { Client } = require('pg');
 
 const app = express();
 const port = process.env.APPLICATION_PORT || 3001;
@@ -41,16 +41,18 @@ const basicAuth = (req, res, next) => {
 
 app.use(basicAuth);
 
-const pool = new Pool({
+const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || 'postgres',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
-});
+};
 
 app.get('/', async (req, res) => {
   try {
+    console.log('Request received:', { period: req.query.period });
+
     let startDate, endDate;
     const periodParam = req.query.period;
 
@@ -75,43 +77,46 @@ app.get('/', async (req, res) => {
       endDate = `${year}-${month}-${lastDay}`;
     }
 
-    const client = await pool.connect();
+
+    const client = new Client(dbConfig);
+    await client.connect();
     let result;
 
     try {
       await client.query('BEGIN');
-      await client.query('SET LOCAL max_parallel_workers_per_gather = 0');
+      let queryText = `
+        WITH expensive_nodes AS (
+          SELECT id
+          FROM nodes
+          WHERE 'LTE' = ANY(tags)
+        )
+        SELECT
+          u.t_id as user_id,
+          u.username,
+          SUM(nuh.total_bytes) as paid_traffic
+        FROM nodes_user_usage_history nuh
+        INNER JOIN expensive_nodes en ON nuh.node_id = en.id
+        INNER JOIN users u ON nuh.user_id = u.t_id
+        WHERE nuh.created_at >= ${periodParam ? '$1::date' : "DATE_TRUNC('month', CURRENT_DATE)"}
+          AND nuh.created_at < ${periodParam ? '$2::date + INTERVAL \'1 day\'' : "DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'"}
+        GROUP BY u.t_id, u.username
+        HAVING SUM(nuh.total_bytes) > 0
+        ORDER BY u.t_id
+      `;
 
-      result = await client.query(
-        `
-          WITH expensive_nodes AS (
-            SELECT id
-            FROM nodes
-            WHERE 'LTE' = ANY(tags)
-          )
-          SELECT
-            u.uuid as user_uuid,
-            u.username,
-            SUM(nuh.total_bytes) as paid_traffic
-          FROM nodes_user_usage_history nuh
-          INNER JOIN expensive_nodes en ON nuh.node_id = en.id
-          INNER JOIN users u ON nuh.user_id = u.t_id
-          WHERE nuh.created_at >= ${periodParam ? '$1::date' : "DATE_TRUNC('month', CURRENT_DATE)"}
-            AND nuh.created_at < ${periodParam ? '$2::date + INTERVAL \'1 day\'' : "DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'"}
-          GROUP BY u.uuid, u.username
-          HAVING SUM(nuh.total_bytes) > 0
-          ORDER BY paid_traffic DESC
-        `,
-        periodParam ? [startDate, endDate] : []
-      );
+      let queryParams = periodParam ? [startDate, endDate] : [];
+
+      result = await client.query(queryText, queryParams);
 
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
-      client.release();
+      await client.end();
     }
+
+    console.log('Data fetched from DB:', { rowCount: result.rows.length });
 
     res.json({
       success: true,
